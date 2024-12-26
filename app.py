@@ -128,10 +128,10 @@ def main():
             
             # Now show the "Preparing to download" spinner until the download button appears
             with st.spinner("Preparing to download... ⬇️"):
-                # Save the file after processing
-                output_file = "kpis_fixed.xlsx"
-                df_fixed.to_excel(output_file, index=False)
-                
+                # Save the file after processing as CSV
+                output_file = "kpis_fixed.csv"
+                df_fixed.to_csv(output_file, index=False)
+            
                 # The spinner stops here, and the download button appears right after
                 with open(output_file, "rb") as f:
                     st.success("🎉 Data Ready to Download!")
@@ -139,7 +139,7 @@ def main():
                         label="Download Fixed Data 📥",
                         data=f,
                         file_name=output_file,
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        mime="text/csv"
                     )
         else:
             st.error("❌ Sorry, there was an error while processing the file.")
