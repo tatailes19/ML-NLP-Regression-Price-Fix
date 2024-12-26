@@ -13,73 +13,73 @@ from sklearn.feature_extraction.text import CountVectorizer
 # Function to process data (your code logic)
 def process_data(file):
     try:
-        # Read and process the Excel data
+        # Read the Excel file using Polars (avoid converting to Pandas unless necessary)
         data = pl.read_excel(file)
-        df = data.to_pandas()
         
-        # Remove rows where 'Username' is 'test'
-        df = df[df["Username"] != "test"]
-        
-        # Create the 'Model' column
-        df["Model"] = df.apply(lambda x: " ".join([x["Brand"], x["Product"], str(x["RAM"]), str(x["STOCK"]), x["Source"]]), axis=1)
-        
-        # Calculate mode prices and merge them into the dataframe
-        mode_prices = df.groupby('Model')['Sell Price'].apply(lambda x: x.mode().iloc[0]).reset_index()
-        df = df.merge(mode_prices, on='Model', suffixes=('', '_mode'))
-        
+        # Filter out 'test' entries directly in Polars
+        df = data.filter(data["Username"] != "test").to_pandas()
+
+        # Vectorized string operations to avoid apply()
+        df["Model"] = df["Brand"] + " " + df["Product"] + " " + df["RAM"].astype(str) + " " + df["STOCK"].astype(str) + " " + df["Source"]
+
+        # Calculate mode prices for each model
+        mode_prices = df.groupby('Model')['Sell Price'].agg(lambda x: x.mode().iloc[0]).reset_index()
+        df = pd.merge(df, mode_prices, on='Model', how='left', suffixes=('', '_mode'))
+
         # Calculate the absolute and percentage difference
         df['abs_diff'] = abs(df['Sell Price'] - df['Sell Price_mode'])
         df['perc_diff'] = (df['abs_diff'] / df['Sell Price_mode']) * 100
-        
+
         # Flag anomalies where the percentage difference is more than 15%
         df['status'] = df['perc_diff'].apply(lambda x: 'anomaly' if x > 15 else 'normal')
         count = df['status'].value_counts()
+
         # Separate anomaly and normal data
         anomaly_data = df[df['status'] == 'anomaly'][["Model", "Sell Price"]]
         normal_data = df[df['status'] == 'normal'][["Model", "Sell Price"]]
-        
+
         # Prepare data for model training
         X_normal = normal_data['Model']
         y_normal = normal_data['Sell Price']
         X_anomaly = anomaly_data['Model']
         y_anomaly = anomaly_data['Sell Price']
-        
+
         # Scale the 'Sell Price' values
         scaler = StandardScaler()
         y_normal_scaled = scaler.fit_transform(y_normal.values.reshape(-1, 1)).ravel()
-        
+
         # Vectorize the model names (features)
-        vectorizer = CountVectorizer(stop_words=None, max_features=5000, min_df=1, max_df=0.95, token_pattern=r'\b\w+\b')
+        vectorizer = CountVectorizer(stop_words=None, max_features=2000, min_df=1, max_df=0.85, token_pattern=r'\b\w+\b')
         X_normal_vectorized = vectorizer.fit_transform(X_normal)
         X_anomaly_vectorized = vectorizer.transform(X_anomaly)
-        
+
         # Train a model on the normal data
-        X_train, X_test, y_train, y_test = train_test_split(X_normal_vectorized, y_normal_scaled, test_size=0.1, random_state=42)
-        
-        # Train a Random Forest model (or use XGBoost as shown)
-        model = xgb.XGBRegressor(n_estimators=300, random_state=42)
+        X_train, X_test, y_train, y_test = train_test_split(X_normal_vectorized, y_normal_scaled, test_size=0.00001, random_state=42)
+
+        # Train an XGBoost model
+        model = xgb.XGBRegressor(n_estimators=100, random_state=42, tree_method='hist', max_depth=5)
         model.fit(X_train, y_train)
-        
+
         # Predict the prices for anomalies
         y_anomaly_pred_scaled = model.predict(X_anomaly_vectorized)
-        
+
         # Add noise (as per original code)
         noise = np.random.normal(0, 0.02, size=y_anomaly_pred_scaled.shape)
         y_anomaly_pred_scaled = y_anomaly_pred_scaled + noise
-        
+
         # Inverse transform the predicted values to get them back to the original scale
         y_anomaly_pred = scaler.inverse_transform(y_anomaly_pred_scaled.reshape(-1, 1))
-        
+
         # Round the predicted prices
         rounded_pred_prices = np.round(y_anomaly_pred / 100) * 100
-        
+
         # Update the anomalies in the original dataframe with the predicted values
         df.loc[df['status'] == 'anomaly', 'Sell Price'] = rounded_pred_prices
-        
-        # Clean up the dataframe by dropping unnecessary columns
-        df = df.drop(columns=["Sell Price_mode", "abs_diff", "perc_diff", "status", "Model"])
-        
-        # Return the cleaned data
+
+        # Clean up the dataframe by dropping unnecessary columns in-place
+        df.drop(columns=["Sell Price_mode", "abs_diff", "perc_diff", "status", "Model"], inplace=True)
+
+        # Return the cleaned data and status counts
         return df, count
 
     except Exception as e:
