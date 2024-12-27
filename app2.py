@@ -78,11 +78,11 @@ def main():
     st.sidebar.markdown("<h1 style='text-align: center; font-family: mariope;'>Welcome to our Price Anomaly fixing tool! 🛠️</h1>", unsafe_allow_html=True)
 
     # Sidebar menu
-    menu = ["Project HHP :iphone:", "Project CE :tv:"]
+    menu = [":iphone: Project HHP", ":tv: Project CE"]
     choice = st.sidebar.radio("Menu", menu)
 
-    if choice == "Project HHP :iphone:":
-        st.markdown("<h1 style='text-align: center;'>🔧 HHP :iphone: Data Fixing Tool</h1>", unsafe_allow_html=True)
+    if choice == ":iphone: Project HHP":
+        st.markdown("<h1 style='text-align: center;'>🔧 HHP Data Fixing Tool 📱</h1>", unsafe_allow_html=True)
 
         st.markdown("<h2 style='text-align: center;'>⌚ A simple tool that helps you deal with abnormal prices within the KPIs Dataset using ML 🚀</h3>", unsafe_allow_html=True)
 
@@ -152,7 +152,7 @@ def main():
             else:
                 st.error("❌ Sorry, there was an error while processing the file.")
 
-    elif choice == "Project CE :tv:":
+    elif choice == ":tv: Project CE":
         st.title("🔧 CE - Coming Soon")
         st.info("This feature is under development. Stay tuned for updates! 🚀")
 
