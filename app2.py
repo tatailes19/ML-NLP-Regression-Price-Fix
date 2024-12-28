@@ -44,7 +44,7 @@ def process_data(file):
         X_normal_vectorized = vectorizer.fit_transform(X_normal)
         X_anomaly_vectorized = vectorizer.transform(X_anomaly)
 
-        X_train, X_test, y_train, y_test = train_test_split(X_normal_vectorized, y_normal_scaled, test_size=0.1, random_state=42)
+        X_train, X_test, y_train, y_test = train_test_split(X_normal_vectorized, y_normal_scaled, test_size=0.000001, random_state=42)
 
         model = xgb.XGBRegressor(n_estimators=300, random_state=42)
         model.fit(X_train, y_train)
@@ -56,10 +56,13 @@ def process_data(file):
 
         rounded_pred_prices = np.round(y_anomaly_pred / 100) * 100
         df.loc[df['status'] == 'anomaly', 'Sell Price'] = rounded_pred_prices
+        anomaly_data['Predicted_Selling_Price'] = rounded_pred_prices
+        anomaly_data['Predicted_Selling_Price'] = anomaly_data['Predicted_Selling_Price'].apply(lambda x:str(x) + "  DZD")
+        anomaly_data["Sell Price"] = anomaly_data["Sell Price"].apply(lambda x: str(x) + "  DZD")
 
         df = df.drop(columns=["Sell Price_mode", "abs_diff", "perc_diff", "status", "Model"])
 
-        return df, count
+        return df, count, anomaly_data
     except Exception as e:
         st.error(f"An error occurred: {e}")
         return None, None
@@ -72,19 +75,19 @@ def main():
     st.sidebar.image("logo.jpeg", use_column_width=True)
 
     # Center and style the sidebar title
-    st.sidebar.markdown("<h1 style='text-align: center; font-family: mariope; font-weight: bold; font-size: 34px;'>Orbicore</h1>", unsafe_allow_html=True)
+    st.sidebar.markdown("<h1 style='text-align: center; font-family: serif; font-weight: bold; font-size: 34px;'>Orbicore</h1>", unsafe_allow_html=True)
 
     # Welcome message
-    st.sidebar.markdown("<h1 style='text-align: center; font-family: mariope;'>Welcome to our Price Anomaly fixing tool! 🛠️</h1>", unsafe_allow_html=True)
+    st.sidebar.markdown("<h1 style='text-align: center; font-family: serif;'>Welcome to our Price Anomaly fixing tool! 🛠️</h1>", unsafe_allow_html=True)
 
     # Sidebar menu
     menu = [":iphone: Project HHP", ":tv: Project CE"]
     choice = st.sidebar.radio("Menu", menu)
 
     if choice == ":iphone: Project HHP":
-        st.markdown("<h1 style='text-align: center;'>🔧 HHP Data Fixing Tool 📱</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='text-align: center;font-family: serif'>🔧 HHP Data Fixing Tool 📱</h1>", unsafe_allow_html=True)
 
-        st.markdown("<h2 style='text-align: center;'>⌚ A simple tool that helps you deal with abnormal prices within the KPIs Dataset using ML 🚀</h3>", unsafe_allow_html=True)
+        st.markdown("<h2 style='text-align: center;font-family: serif'>⌚ A simple tool that helps you deal with abnormal prices within the KPIs Dataset using ML 🚀</h2>", unsafe_allow_html=True)
 
         # Using a container for the main description
         with st.container():
@@ -122,20 +125,26 @@ def main():
             st.write("✅ File uploaded successfully! Processing... Please wait.")
 
             with st.spinner("Understanding and Fixing Your Data... :mag:"):
-                df_fixed, status_counts = process_data(uploaded_file)
+                df_fixed, status_counts, anomaly = process_data(uploaded_file)
 
             if df_fixed is not None:
                 st.success("🎉 Data Fixed successfully!")
-                st.write("Here is a preview of the fixed data:")
-                st.dataframe(df_fixed.head())
 
-                st.subheader('📊 Frequency of Anomalies and Normal Data')
-                fig, ax = plt.subplots()
-                status_counts.plot(kind='bar', ax=ax, color=['green', 'red'])
-                ax.set_title('Normal vs Anomalies in Sell Price')
-                ax.set_xlabel('Status')
-                ax.set_ylabel('Frequency')
-                st.pyplot(fig)
+                # Display anomalous data in an expandable container
+                with st.expander("📄 View Fixed vs Anomalous Data", expanded=False):
+                    anomaly = anomaly.rename(columns={"Sell Price": "Original Selling Price", "Predicted_Selling_Price": "Adjusted Selling Price"})
+                    st.dataframe(anomaly)
+                with st.expander(":chart_with_upwards_trend: View Proportions", expanded=False):
+                # Display the graph
+                    st.subheader('📊 Proportion of Normal vs Anomalous Prices')
+                    labels = status_counts.index
+                    sizes = status_counts.values
+                    plt.figure(figsize=(8, 6))
+                    plt.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=140, colors=['#07AAE2', '#FFA500'])
+                    plt.title('Proportions of Price Status', color='#07AAE2')              
+                    plt.xlabel('Status', color='#07AAE2')
+                    plt.ylabel('Frequency', color='#07AAE2')
+                    st.pyplot(plt)
 
                 with st.spinner("Preparing to download... ⬇️"):
                     output_file = "kpis_fixed.xlsx"
