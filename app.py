@@ -49,7 +49,7 @@ def process_data(file):
         model.fit(X_train, y_train)
 
         y_anomaly_pred_scaled = model.predict(X_anomaly_vectorized)
-        noise = np.random.normal(0, 0.02, size=y_anomaly_pred_scaled.shape)
+        noise = np.random.normal(0, 0.01, size=y_anomaly_pred_scaled.shape)
         y_anomaly_pred_scaled = y_anomaly_pred_scaled + noise
         y_anomaly_pred = scaler.inverse_transform(y_anomaly_pred_scaled.reshape(-1, 1))
 
