@@ -13,118 +13,136 @@ from sklearn.feature_extraction.text import CountVectorizer
 # Function to process data (your code logic)
 def process_data(file):
     try:
-        # Read the Excel file using Polars (avoid converting to Pandas unless necessary)
         data = pl.read_excel(file)
-        
-        # Filter out 'test' entries directly in Polars
-        df = data.filter(data["Username"] != "test").to_pandas()
+        df = data.to_pandas()
 
-        # Vectorized string operations to avoid apply()
-        df["Model"] = df["Brand"] + " " + df["Product"] + " " + df["RAM"].astype(str) + " " + df["STOCK"].astype(str) + " " + df["Source"]
+        df = df[df["Username"] != "test"]
+        df["Model"] = df.apply(lambda x: " ".join([x["Brand"], x["Product"], str(x["RAM"]), str(x["STOCK"]), x["Source"]]), axis=1)
 
-        # Calculate mode prices for each model
-        mode_prices = df.groupby('Model')['Sell Price'].agg(lambda x: x.mode().iloc[0]).reset_index()
-        df = pd.merge(df, mode_prices, on='Model', how='left', suffixes=('', '_mode'))
+        mode_prices = df.groupby('Model')['Sell Price'].apply(lambda x: x.mode().iloc[0]).reset_index()
+        df = df.merge(mode_prices, on='Model', suffixes=('', '_mode'))
 
-        # Calculate the absolute and percentage difference
         df['abs_diff'] = abs(df['Sell Price'] - df['Sell Price_mode'])
         df['perc_diff'] = (df['abs_diff'] / df['Sell Price_mode']) * 100
 
-        # Flag anomalies where the percentage difference is more than 15%
         df['status'] = df['perc_diff'].apply(lambda x: 'anomaly' if x > 15 else 'normal')
         count = df['status'].value_counts()
 
-        # Separate anomaly and normal data
         anomaly_data = df[df['status'] == 'anomaly'][["Model", "Sell Price"]]
         normal_data = df[df['status'] == 'normal'][["Model", "Sell Price"]]
 
-        # Prepare data for model training
         X_normal = normal_data['Model']
         y_normal = normal_data['Sell Price']
         X_anomaly = anomaly_data['Model']
         y_anomaly = anomaly_data['Sell Price']
 
-        # Scale the 'Sell Price' values
         scaler = StandardScaler()
         y_normal_scaled = scaler.fit_transform(y_normal.values.reshape(-1, 1)).ravel()
 
-        # Vectorize the model names (features)
-        vectorizer = CountVectorizer(stop_words=None, max_features=2000, min_df=1, max_df=0.85, token_pattern=r'\b\w+\b')
+        vectorizer = CountVectorizer(stop_words=None, max_features=5000, min_df=1, max_df=0.95, token_pattern=r'\b\w+\b')
         X_normal_vectorized = vectorizer.fit_transform(X_normal)
         X_anomaly_vectorized = vectorizer.transform(X_anomaly)
 
-        # Train a model on the normal data
-        X_train, X_test, y_train, y_test = train_test_split(X_normal_vectorized, y_normal_scaled, test_size=0.00001, random_state=42)
+        X_train, X_test, y_train, y_test = train_test_split(X_normal_vectorized, y_normal_scaled, test_size=0.000001, random_state=42)
 
-        # Train an XGBoost model
-        model = xgb.XGBRegressor(n_estimators=100, random_state=42, tree_method='hist', max_depth=5)
+        model = xgb.XGBRegressor(n_estimators=300, random_state=42)
         model.fit(X_train, y_train)
 
-        # Predict the prices for anomalies
         y_anomaly_pred_scaled = model.predict(X_anomaly_vectorized)
-
-        # Add noise (as per original code)
         noise = np.random.normal(0, 0.02, size=y_anomaly_pred_scaled.shape)
         y_anomaly_pred_scaled = y_anomaly_pred_scaled + noise
-
-        # Inverse transform the predicted values to get them back to the original scale
         y_anomaly_pred = scaler.inverse_transform(y_anomaly_pred_scaled.reshape(-1, 1))
 
-        # Round the predicted prices
         rounded_pred_prices = np.round(y_anomaly_pred / 100) * 100
-
-        # Update the anomalies in the original dataframe with the predicted values
         df.loc[df['status'] == 'anomaly', 'Sell Price'] = rounded_pred_prices
+        anomaly_data['Predicted_Selling_Price'] = rounded_pred_prices
+        anomaly_data['Predicted_Selling_Price'] = anomaly_data['Predicted_Selling_Price'].apply(lambda x:str(x) + "  DZD")
+        anomaly_data["Sell Price"] = anomaly_data["Sell Price"].apply(lambda x: str(x) + "  DZD")
 
-        # Clean up the dataframe by dropping unnecessary columns in-place
-        df.drop(columns=["Sell Price_mode", "abs_diff", "perc_diff", "status", "Model"], inplace=True)
+        df = df.drop(columns=["Sell Price_mode", "abs_diff", "perc_diff", "status", "Model"])
 
-        # Return the cleaned data and status counts
-        return df, count
-
+        return df, count, anomaly_data
     except Exception as e:
         st.error(f"An error occurred: {e}")
         return None, None
 
-# Streamlit UI
 def main():
-    st.title('🔧 Anomaly Prices Fixing Tool')
-    st.subheader('📊 Upload your data file to fix anomalies in the sell prices.')
+    st.set_page_config(page_title="Anomaly Fixing Tool")#, layout="wide"
 
-    st.markdown("""
-    - This tool processes data files to detect anomalies in sell prices based on the differences from the mode prices. 🕵️‍♂️
-    - A model is used to predict the correct sell prices for these anomalies. 🧑‍💻
-    - After processing, you can download the cleaned data file with fixed prices. 📥
-    """)
-    
-    st.info("Ensure that your file has the columns: 'Username', 'Brand', 'Product', 'RAM', 'STOCK', 'Source', and 'Sell Price'. 🔑")
+    # Display logo and title
+    st.sidebar.image("logo.jpeg", use_column_width=True)
 
-    # Upload file
-    uploaded_file = st.file_uploader("Choose an Excel file 📂", type=["xlsx"])
-    
-    if uploaded_file is not None:
-        st.write("✅ File uploaded successfully! Processing... Please wait.")
+    # Center and style the sidebar title
+    st.sidebar.markdown("<h1 style='text-align: center; font-family: serif; font-weight: bold; font-size: 34px;'>Orbicore</h1>", unsafe_allow_html=True)
+
+    # Welcome message
+    st.sidebar.markdown("<h1 style='text-align: center; font-family: serif;'>Welcome to our Price Anomaly fixing tool! 🛠️</h1>", unsafe_allow_html=True)
+
+    # Sidebar menu
+    menu = [":iphone: Project HHP", ":tv: Project CE"]
+    choice = st.sidebar.radio("Menu", menu)
+
+    if choice == ":iphone: Project HHP":
+        st.markdown("<h1 style='text-align: center;font-family: serif'>🔧 HHP Data Fixing Tool 📱</h1>", unsafe_allow_html=True)
+
+        st.markdown("<h2 style='text-align: center;font-family: serif'>⌚ A simple tool that helps you deal with abnormal prices within the KPIs Dataset using ML 🚀</h2>", unsafe_allow_html=True)
+
+        # Using a container for the main description
+        with st.container():
+            st.markdown("""
+            - Upload an Excel file and the tool processes data files to detect anomalies in sell prices based on the differences from the mode prices. 🕵️‍♂️
+            - An Xgboost model is then used to predict the correct sell prices for these anomalies. 🧑‍💻
+            - After processing, you can download the cleaned data file with fixed prices. 📥
+            """)
+
+        st.markdown("---")  # Horizontal line for separation
+
+        # Using columns for the file requirements
+        st.info("#### Please ensure your file includes the following columns: :key:")
         
-        # Show a progress bar while processing
-        with st.spinner("Understanding Your Data... 📈"):
-            df_fixed, status_counts = process_data(uploaded_file)
-        
-        # Once the data is processed, display it for download
-        if df_fixed is not None:
-            st.success("🎉 Data Analyzed successfully!")
-            st.write("Here is a preview of the data:")
+        col1, col2 = st.columns(2)
 
-            # Show the first few rows of the fixed data
-            st.dataframe(df_fixed.head())
-            
-            # Plot frequency of 'normal' and 'anomaly'
-            st.subheader('📊 Frequency of Anomalies and Normal Data')
-            fig, ax = plt.subplots()
-            status_counts.plot(kind='bar', ax=ax, color=['green', 'red'])
-            ax.set_title('Normal vs Anomalies in Sell Price')
-            ax.set_xlabel('Status')
-            ax.set_ylabel('Frequency')
-            st.pyplot(fig)
+        with col1:
+            st.markdown("""
+            - **Username**
+            - **Brand**
+            - **Product**
+            - **Sell Price**
+            """)
+
+        with col2:
+            st.markdown("""
+            - **RAM**
+            - **STOCK**
+            - **Source**
+            """)
+
+        uploaded_file = st.file_uploader("Choose an Excel file 📂", type=["xlsx"])
+
+        if uploaded_file is not None:
+            st.write("✅ File uploaded successfully! Processing... Please wait.")
+
+            with st.spinner("Understanding and Fixing Your Data... :mag:"):
+                df_fixed, status_counts, anomaly = process_data(uploaded_file)
+
+            if df_fixed is not None:
+                st.success("🎉 Data Fixed successfully!")
+
+                # Display anomalous data in an expandable container
+                with st.expander("📄 View Fixed vs Anomalous Data", expanded=False):
+                    anomaly = anomaly.rename(columns={"Sell Price": "Original Selling Price", "Predicted_Selling_Price": "Adjusted Selling Price"})
+                    st.dataframe(anomaly)
+                with st.expander(":chart_with_upwards_trend: View Proportions", expanded=False):
+                # Display the graph
+                    st.subheader('📊 Proportion of Normal vs Anomalous Prices')
+                    labels = status_counts.index
+                    sizes = status_counts.values
+                    plt.figure(figsize=(8, 6))
+                    plt.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=140, colors=['#07AAE2', '#FFA500'])
+                    plt.title('Proportions of Price Status', color='#07AAE2')              
+                    plt.xlabel('Status', color='#07AAE2')
+                    plt.ylabel('Frequency', color='#07AAE2')
+                    st.pyplot(plt)
             
             # Now show the "Preparing to download" spinner until the download button appears
             with st.spinner("Preparing to download... ⬇️"):
@@ -143,6 +161,9 @@ def main():
                     )
         else:
             st.error("❌ Sorry, there was an error while processing the file.")
+    elif choice == ":tv: Project CE":
+        st.title("🔧 CE - Coming Soon")
+        st.info("This feature is under development. Stay tuned for updates! 🚀")
 
 if __name__ == "__main__":
     main()
