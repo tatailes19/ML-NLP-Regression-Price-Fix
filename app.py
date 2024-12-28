@@ -143,6 +143,27 @@ def main():
                     plt.xlabel('Status', color='#07AAE2')
                     plt.ylabel('Frequency', color='#07AAE2')
                     st.pyplot(plt)
+                st.markdown("---")
+                st.subheader("🔮 Predict Single Price")
+                with st.form("single_prediction_form"):
+                    brand = st.text_input("Brand")
+                    product = st.text_input("Product")
+                    ram = st.text_input("RAM")
+                    stock = st.text_input("STOCK")
+                    source = st.text_input("Source")
+                    #sell_price = st.number_input("Current Sell Price", min_value=0)
+                    submitted = st.form_submit_button("Predict")
+
+                    if submitted:
+                        try:
+                            single_model = f"{brand} {product} {ram} {stock} {source}"
+                            single_vectorized = vectorizer.transform([single_model])
+                            single_prediction_scaled = model.predict(single_vectorized)
+                            single_prediction = scaler.inverse_transform(single_prediction_scaled.reshape(-1, 1))
+                            rounded_price = np.round(single_prediction / 100) * 100
+                            st.success(f"Predicted Selling Price: {rounded_price[0][0]} DZD")
+                        except Exception as e:
+                            st.error(f"Error during prediction: {e}")                    
             
             # Now show the "Preparing to download" spinner until the download button appears
                 with st.spinner("Preparing to download... ⬇️"):
