@@ -67,10 +67,10 @@ def process_data(file):
         return None, None
 
 def main():
-    st.set_page_config(page_title="Anomaly Fixing Tool")#, layout="wide"
+    st.set_page_config(page_title="Anomaly Fixing Tool",page_icon="Orbi_logo.png")#, layout="wide"
 
     # Display logo and title
-    st.sidebar.image("logo.jpeg", use_column_width=True)
+    st.sidebar.image("logo.jpeg")
 
     # Center and style the sidebar title
     st.sidebar.markdown("<h1 style='text-align: center; font-family: serif; font-weight: bold; font-size: 34px;'>Orbicore</h1>", unsafe_allow_html=True)
@@ -145,22 +145,22 @@ def main():
                     st.pyplot(plt)
             
             # Now show the "Preparing to download" spinner until the download button appears
-            with st.spinner("Preparing to download... ⬇️"):
-                # Save the file after processing as CSV
-                output_file = "kpis_fixed.csv"
-                df_fixed.to_csv(output_file, index=False)
-            
-                # The spinner stops here, and the download button appears right after
-                with open(output_file, "rb") as f:
-                    st.success("🎉 Data Ready to Download!")
-                    st.download_button(
-                        label="Download Fixed Data 📥",
-                        data=f,
-                        file_name=output_file,
-                        mime="text/csv"
-                    )
-        else:
-            st.error("❌ Sorry, there was an error while processing the file.")
+                with st.spinner("Preparing to download... ⬇️"):
+                    # Save the file after processing as CSV
+                    output_file = "kpis_fixed.csv"
+                    df_fixed.to_csv(output_file, index=False)
+                
+                    # The spinner stops here, and the download button appears right after
+                    with open(output_file, "rb") as f:
+                        st.success("🎉 Data Ready to Download!")
+                        st.download_button(
+                            label="Download Fixed Data 📥",
+                            data=f,
+                            file_name=output_file,
+                            mime="text/csv"
+                        )
+            else:
+                st.error("❌ Sorry, there was an error while processing the file.")
     elif choice == ":tv: Project CE":
         st.title("🔧 CE - Coming Soon")
         st.info("This feature is under development. Stay tuned for updates! 🚀")
