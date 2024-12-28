@@ -61,7 +61,7 @@ def process_data(file):
 
         df = df.drop(columns=["Sell Price_mode", "abs_diff", "perc_diff", "status", "Model"])
 
-        return df, count, anomaly_data
+        return df, count, anomaly_data, model, scaler, vectorizer
     except Exception as e:
         st.error(f"An error occurred: {e}")
         return None, None
@@ -123,7 +123,7 @@ def main():
             st.write("✅ File uploaded successfully! Processing... Please wait.")
 
             with st.spinner("Understanding and Fixing Your Data... :mag:"):
-                df_fixed, status_counts, anomaly = process_data(uploaded_file)
+                df_fixed, status_counts, anomaly, model, scaler, vectorizer = process_data(uploaded_file)
 
             if df_fixed is not None:
                 st.success("🎉 Data Fixed successfully!")
