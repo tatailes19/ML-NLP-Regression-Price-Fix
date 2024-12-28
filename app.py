@@ -148,7 +148,7 @@ def main():
                 with st.spinner("Preparing to download... ⬇️"):
                     # Save the file after processing as CSV
                     output_file = "kpis_fixed.csv"
-                    df_fixed.to_csv(output_file, index=False)
+                    df_fixed.to_csv(output_file, index=False,encoding='utf-8-sig')
                 
                     # The spinner stops here, and the download button appears right after
                     with open(output_file, "rb") as f:
