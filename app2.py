@@ -62,34 +62,27 @@ def process_data(file):
 
         df = df.drop(columns=["Sell Price_mode", "abs_diff", "perc_diff", "status", "Model"])
 
-        return df, count, anomaly_data
+        return df, count, anomaly_data, model, scaler, vectorizer
     except Exception as e:
         st.error(f"An error occurred: {e}")
-        return None, None
+        return None, None, None, None, None, None
 
 # Streamlit UI
 def main():
-    st.set_page_config(page_title="Anomaly Fixing Tool")#, layout="wide"
+    st.set_page_config(page_title="Anomaly Fixing Tool", page_icon="Orbi_logo.png")
 
     # Display logo and title
-    st.sidebar.image("logo.jpeg", use_column_width=True)
-
-    # Center and style the sidebar title
+    st.sidebar.image("logo.jpeg")
     st.sidebar.markdown("<h1 style='text-align: center; font-family: serif; font-weight: bold; font-size: 34px;'>Orbicore</h1>", unsafe_allow_html=True)
-
-    # Welcome message
     st.sidebar.markdown("<h1 style='text-align: center; font-family: serif;'>Welcome to our Price Anomaly fixing tool! 🛠️</h1>", unsafe_allow_html=True)
 
-    # Sidebar menu
     menu = [":iphone: Project HHP", ":tv: Project CE"]
     choice = st.sidebar.radio("Menu", menu)
 
     if choice == ":iphone: Project HHP":
         st.markdown("<h1 style='text-align: center;font-family: serif'>🔧 HHP Data Fixing Tool 📱</h1>", unsafe_allow_html=True)
-
         st.markdown("<h2 style='text-align: center;font-family: serif'>⌚ A simple tool that helps you deal with abnormal prices within the KPIs Dataset using ML 🚀</h2>", unsafe_allow_html=True)
 
-        # Using a container for the main description
         with st.container():
             st.markdown("""
             - Upload an Excel file and the tool processes data files to detect anomalies in sell prices based on the differences from the mode prices. 🕵️‍♂️
@@ -97,11 +90,8 @@ def main():
             - After processing, you can download the cleaned data file with fixed prices. 📥
             """)
 
-        st.markdown("---")  # Horizontal line for separation
-
-        # Using columns for the file requirements
+        st.markdown("---")
         st.info("#### Please ensure your file includes the following columns: :key:")
-        
         col1, col2 = st.columns(2)
 
         with col1:
@@ -125,17 +115,16 @@ def main():
             st.write("✅ File uploaded successfully! Processing... Please wait.")
 
             with st.spinner("Understanding and Fixing Your Data... :mag:"):
-                df_fixed, status_counts, anomaly = process_data(uploaded_file)
+                df_fixed, status_counts, anomaly, model, scaler, vectorizer = process_data(uploaded_file)
 
             if df_fixed is not None:
                 st.success("🎉 Data Fixed successfully!")
 
-                # Display anomalous data in an expandable container
                 with st.expander("📄 View Fixed vs Anomalous Data", expanded=False):
                     anomaly = anomaly.rename(columns={"Sell Price": "Original Selling Price", "Predicted_Selling_Price": "Adjusted Selling Price"})
                     st.dataframe(anomaly)
+                
                 with st.expander(":chart_with_upwards_trend: View Proportions", expanded=False):
-                # Display the graph
                     st.subheader('📊 Proportion of Normal vs Anomalous Prices')
                     labels = status_counts.index
                     sizes = status_counts.values
@@ -145,6 +134,28 @@ def main():
                     plt.xlabel('Status', color='#07AAE2')
                     plt.ylabel('Frequency', color='#07AAE2')
                     st.pyplot(plt)
+
+                st.markdown("---")
+                st.subheader("🔮 Predict Single Price")
+                with st.form("single_prediction_form"):
+                    brand = st.text_input("Brand")
+                    product = st.text_input("Product")
+                    ram = st.text_input("RAM")
+                    stock = st.text_input("STOCK")
+                    source = st.text_input("Source")
+                    #sell_price = st.number_input("Current Sell Price", min_value=0)
+                    submitted = st.form_submit_button("Predict")
+
+                    if submitted:
+                        try:
+                            single_model = f"{brand} {product} {ram} {stock} {source}"
+                            single_vectorized = vectorizer.transform([single_model])
+                            single_prediction_scaled = model.predict(single_vectorized)
+                            single_prediction = scaler.inverse_transform(single_prediction_scaled.reshape(-1, 1))
+                            rounded_price = np.round(single_prediction / 100) * 100
+                            st.success(f"Predicted Selling Price: {rounded_price[0][0]} DZD")
+                        except Exception as e:
+                            st.error(f"Error during prediction: {e}")
 
                 with st.spinner("Preparing to download... ⬇️"):
                     output_file = "kpis_fixed.xlsx"
